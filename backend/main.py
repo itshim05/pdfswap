@@ -69,20 +69,46 @@ def process_single_pdf(file_bytes, user_details):
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         
         details = smart_parse_inputs(user_details)
+        
+        # Define patterns with consistent labels for replacement
         patterns = {}
         
         if details.get('name'):
-            patterns['Name'] = (r"(?i)(Name|Student Name|Candidate Name)\s*[:\-\.]?\s*(.*)", details['name'])
+            patterns['Name'] = {
+                'pattern': r"(?i)(Name|Student Name|Candidate Name)\s*[:\-\.]?\s*(.*)",
+                'label': 'Name',
+                'value': details['name']
+            }
         if details.get('roll'):
-            patterns['Roll'] = (r"(?i)(Roll|Roll No|Seat No)\s*[:\-\.]?\s*(.*)", details['roll'])
+            patterns['Roll'] = {
+                'pattern': r"(?i)(Roll|Roll No|Seat No|Roll Number)\s*[:\-\.]?\s*(.*)",
+                'label': 'Roll No',
+                'value': details['roll']
+            }
         if details.get('class'):
-            patterns['Class'] = (r"(?i)(Class|Year|Branch|Course)\s*[:\-\.]?\s*(.*)", details['class'])
+            patterns['Class'] = {
+                'pattern': r"(?i)(Class|Year|Branch|Course)\s*[:\-\.]?\s*(.*)",
+                'label': 'Class',
+                'value': details['class']
+            }
         if details.get('div'):
-            patterns['Div'] = (r"(?i)(Div|Division|Section|Batch)\s*[:\-\.]?\s*(.*)", details['div'])
+            patterns['Div'] = {
+                'pattern': r"(?i)(Div|Division|Section|Batch)\s*[:\-\.]?\s*(.*)",
+                'label': 'Division',
+                'value': details['div']
+            }
         if details.get('prn'):
-            patterns['PRN'] = (r"(?i)(PRN|Reg No|ID|Registration)\s*[:\-\.]?\s*(.*)", details['prn'])
+            patterns['PRN'] = {
+                'pattern': r"(?i)(PRN|Reg No|ID|Registration|Registration No)\s*[:\-\.]?\s*(.*)",
+                'label': 'PRN',
+                'value': details['prn']
+            }
         if details.get('activity'):
-            patterns['Activity'] = (r"(?i)(Aim|Title|Experiment|Activity)\s*[:\-\.]?\s*(.*)", details['activity'])
+            patterns['Activity'] = {
+                'pattern': r"(?i)(Aim|Title|Experiment|Activity|Experiment No)\s*[:\-\.]?\s*(.*)",
+                'label': 'Activity',
+                'value': details['activity']
+            }
 
         for page in doc:
             blocks = page.get_text("dict")["blocks"]
@@ -95,10 +121,9 @@ def process_single_pdf(file_bytes, user_details):
                 for line in block["lines"]:
                     full_line_text = "".join([span["text"] for span in line["spans"]])
                     
-                    for key, (pattern, new_value) in patterns.items():
-                        match = re.search(pattern, full_line_text)
+                    for key, pattern_info in patterns.items():
+                        match = re.search(pattern_info['pattern'], full_line_text)
                         if match:
-                            label = match.group(1)
                             if not line["spans"]:
                                 continue
                                 
@@ -111,16 +136,23 @@ def process_single_pdf(file_bytes, user_details):
                             
                             mapped_font = map_font(origin_font, origin_flags)
                             
+                            # Determine separator from original text
                             separator = ": "
-                            if ":" in full_line_text: separator = ": "
-                            elif "-" in full_line_text: separator = "- "
-                            elif "." in full_line_text: separator = ". "
-                                
-                            new_line_text = f"{label}{separator}{new_value}"
+                            if ":" in full_line_text: 
+                                separator = ": "
+                            elif "-" in full_line_text: 
+                                separator = "- "
+                            elif "." in full_line_text: 
+                                separator = ". "
                             
+                            # Use consistent label and new value
+                            new_line_text = f"{pattern_info['label']}{separator}{pattern_info['value']}"
+                            
+                            # Clear the old line
                             line_bbox = fitz.Rect(line["bbox"])
                             page.draw_rect(line_bbox, color=(1, 1, 1), fill=(1, 1, 1))
                             
+                            # Insert new text
                             start_x = origin_span["origin"][0]
                             r = ((origin_color >> 16) & 255) / 255
                             g = ((origin_color >> 8) & 255) / 255
@@ -130,6 +162,8 @@ def process_single_pdf(file_bytes, user_details):
                                 page.insert_text((start_x, origin_y), new_line_text, fontname=mapped_font, fontsize=origin_size, color=(r, g, b))
                             except:
                                 page.insert_text((start_x, origin_y), new_line_text, fontname="helv", fontsize=origin_size, color=(r, g, b))
+                            
+                            # Mark this pattern as processed to avoid duplicate replacements
                             break
 
         out_buffer = io.BytesIO()
@@ -139,6 +173,7 @@ def process_single_pdf(file_bytes, user_details):
     except Exception as e:
         logger.error(f"Error processing PDF: {e}")
         raise
+
 
 # API Endpoints
 
