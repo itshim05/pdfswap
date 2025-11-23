@@ -190,6 +190,9 @@ def process_single_pdf(file_bytes, user_details):
         out_buffer = io.BytesIO()
         doc.save(out_buffer)
         doc.close()
+        
+        # CRITICAL: Seek to beginning of buffer before reading
+        out_buffer.seek(0)
         return out_buffer.getvalue()
     except Exception as e:
         logger.error(f"Error processing PDF: {e}")
