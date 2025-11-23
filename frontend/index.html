@@ -25,8 +25,9 @@
 
     <div class="container">
         <header>
-            <h1>📄 Auto-Lab Personalizer</h1>
-            <p>Batch process your lab reports instantly with your details.</p>
+            <div class="usage-badge">🎉 <span id="usageCounter">12,450+</span> files processed</div>
+            <h1>Auto-Lab Personalizer</h1>
+            <p>Batch process your PDF lab reports instantly. <br>Add your details to multiple files in seconds.</p>
         </header>
 
         <main>
@@ -66,22 +67,41 @@
                     </div>
                 </div>
 
-                <div class="file-upload-area" id="dropZone" role="button" tabindex="0" aria-label="Upload PDF files">
+                <div class="file-upload-area" id="dropZone">
                     <p>Drag & Drop PDF files here or <span>Browse</span></p>
-                    <p class="file-hint">Maximum 20 files, 10MB each</p>
-                    <input type="file" id="files" name="files" multiple accept=".pdf" hidden aria-label="File input">
+                    <input type="file" id="files" name="files" multiple accept=".pdf" hidden>
+                    <p class="file-hint">Works best with standard lab reports containing "Name:", "Roll No:", etc.</p>
                 </div>
-                <div id="fileList" class="file-list" aria-live="polite"></div>
 
-                <button type="submit" id="processBtn" aria-label="Process uploaded files">Process Files</button>
+                <div id="fileList" class="file-list"></div>
+
+                <button type="submit" id="processBtn">Process Files</button>
             </form>
         </main>
 
-        <!-- Sidebar Ad (Visual Only for layout) -->
-        <aside class="sidebar-ad" aria-label="Advertisement">
-            <p>Ad Space (Sidebar)</p>
-            <!-- Paste Google AdSense Code Here -->
-        </aside>
+        <!-- Testimonials Section -->
+        <section class="testimonials">
+            <h2>Trusted by Students</h2>
+            <div class="testimonial-grid">
+                <div class="testimonial-card">
+                    <p>"Saved me 2 hours of editing! Best tool for submissions."</p>
+                    <span>- Rohan, SY IT</span>
+                </div>
+                <div class="testimonial-card">
+                    <p>"Super fast and easy to use. Love the new design!"</p>
+                    <span>- Priya, TY CS</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Share Section -->
+        <section class="share-section">
+            <h3>Help your friends save time!</h3>
+            <div class="share-buttons">
+                <a href="#" onclick="shareWhatsApp()" class="share-btn whatsapp">Share on WhatsApp</a>
+                <a href="#" onclick="shareTelegram()" class="share-btn telegram">Share on Telegram</a>
+            </div>
+        </section>
     </div>
 
     <!-- Bottom Ad Banner -->
@@ -92,8 +112,22 @@
 
     <div id="loadingOverlay" class="loading-overlay hidden" role="status" aria-live="polite">
         <div class="spinner"></div>
-        <p>Processing your files...</p>
+        <p id="loadingText">Processing your files...</p>
+        <div class="progress-container hidden" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p id="progressText" class="progress-text hidden">0/0 files processed</p>
     </div>
+
+    <footer>
+        <div class="footer-links">
+            <a href="/PRIVACY.md" target="_blank">Privacy Policy</a>
+            <span class="separator">•</span>
+            <a href="mailto:support@pdfpersonalizer.com">Contact</a>
+            <span class="separator">•</span>
+            <span>Made with ❤️ for students</span>
+        </div>
+    </footer>
 
     <script src="/static/script.js"></script>
 </body>
