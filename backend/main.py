@@ -69,6 +69,7 @@ def process_single_pdf(file_bytes, user_details):
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         
         details = smart_parse_inputs(user_details)
+        logger.info(f"Processing PDF with details: {details}")
         
         # Define patterns with consistent labels for replacement
         patterns = {}
@@ -110,8 +111,13 @@ def process_single_pdf(file_bytes, user_details):
                 'value': details['activity']
             }
 
-        for page in doc:
+        logger.info(f"Patterns to match: {list(patterns.keys())}")
+        replacements_made = 0
+
+        for page_num, page in enumerate(doc):
             blocks = page.get_text("dict")["blocks"]
+            logger.info(f"Page {page_num + 1}: Processing {len(blocks)} blocks")
+            
             for block in blocks:
                 if "lines" not in block:
                     continue
@@ -121,9 +127,15 @@ def process_single_pdf(file_bytes, user_details):
                 for line in block["lines"]:
                     full_line_text = "".join([span["text"] for span in line["spans"]])
                     
+                    # Log text in header area for debugging
+                    if block["bbox"][1] <= HEADER_LIMIT_Y:
+                        logger.debug(f"Header text: '{full_line_text}'")
+                    
                     for key, pattern_info in patterns.items():
                         match = re.search(pattern_info['pattern'], full_line_text)
                         if match:
+                            logger.info(f"MATCH FOUND for {key}: '{full_line_text}' -> will replace with '{pattern_info['label']}: {pattern_info['value']}'")
+                            
                             if not line["spans"]:
                                 continue
                                 
@@ -160,11 +172,20 @@ def process_single_pdf(file_bytes, user_details):
                             
                             try:
                                 page.insert_text((start_x, origin_y), new_line_text, fontname=mapped_font, fontsize=origin_size, color=(r, g, b))
-                            except:
+                                replacements_made += 1
+                                logger.info(f"Successfully replaced: '{full_line_text}' with '{new_line_text}'")
+                            except Exception as e:
+                                logger.warning(f"Font {mapped_font} failed, using helv: {e}")
                                 page.insert_text((start_x, origin_y), new_line_text, fontname="helv", fontsize=origin_size, color=(r, g, b))
+                                replacements_made += 1
                             
                             # Mark this pattern as processed to avoid duplicate replacements
                             break
+
+        logger.info(f"Total replacements made: {replacements_made}")
+        
+        if replacements_made == 0:
+            logger.warning("NO REPLACEMENTS MADE! Check if PDF has matching fields in header area (top 300 points)")
 
         out_buffer = io.BytesIO()
         doc.save(out_buffer)
@@ -173,6 +194,7 @@ def process_single_pdf(file_bytes, user_details):
     except Exception as e:
         logger.error(f"Error processing PDF: {e}")
         raise
+
 
 
 # API Endpoints
