@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Lab Personalizer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- Top Ad Banner -->
+    <div class="ad-banner top-ad">
+        <p>Ad Space (Top Banner)</p>
+        <!-- Paste Google AdSense Code Here -->
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>Auto-Lab Personalizer</h1>
+            <p>Batch process your lab reports instantly.</p>
+        </header>
+
+        <main>
+            <form id="uploadForm">
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>Name</label>
+                        <input type="text" id="name" name="name" placeholder="John Doe">
+                    </div>
+                    <div class="input-group">
+                        <label>Roll No</label>
+                        <input type="text" id="roll" name="roll" placeholder="123">
+                    </div>
+                    <div class="input-group">
+                        <label>Class</label>
+                        <input type="text" id="classname" name="classname" placeholder="SY BTech">
+                    </div>
+                    <div class="input-group">
+                        <label>Division</label>
+                        <input type="text" id="div" name="div" placeholder="A">
+                    </div>
+                    <div class="input-group">
+                        <label>PRN/ID</label>
+                        <input type="text" id="prn" name="prn" placeholder="20220101">
+                    </div>
+                    <div class="input-group">
+                        <label>Activity Title</label>
+                        <input type="text" id="activity" name="activity" placeholder="Experiment 1">
+                    </div>
+                </div>
+
+                <div class="file-upload-area" id="dropZone">
+                    <p>Drag & Drop PDF files here or <span>Browse</span></p>
+                    <input type="file" id="files" name="files" multiple accept=".pdf" hidden>
+                </div>
+                <div id="fileList" class="file-list"></div>
+
+                <button type="submit" id="processBtn">Process Files</button>
+            </form>
+        </main>
+
+        <!-- Sidebar Ad (Visual Only for layout) -->
+        <aside class="sidebar-ad">
+            <p>Ad Space (Sidebar)</p>
+            <!-- Paste Google AdSense Code Here -->
+        </aside>
+    </div>
+
+    <!-- Bottom Ad Banner -->
+    <div class="ad-banner bottom-ad">
+        <p>Ad Space (Bottom Banner)</p>
+        <!-- Paste Google AdSense Code Here -->
+    </div>
+
+    <div id="loadingOverlay" class="hidden">
+        <div class="spinner"></div>
+        <p>Processing your files...</p>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
