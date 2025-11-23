@@ -7,3 +7,7 @@ env/
 venv/
 *.zip
 .vercel
+.DS_Store
+.idea/
+.vscode/
+*.log

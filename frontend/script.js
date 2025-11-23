@@ -3,6 +3,53 @@ const fileInput = document.getElementById('files');
 const fileList = document.getElementById('fileList');
 const uploadForm = document.getElementById('uploadForm');
 const loadingOverlay = document.getElementById('loadingOverlay');
+const errorMessage = document.getElementById('errorMessage');
+const successMessage = document.getElementById('successMessage');
+
+// Constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILES = 20;
+
+// Utility Functions
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.classList.remove('hidden');
+    successMessage.classList.add('hidden');
+    setTimeout(() => errorMessage.classList.add('hidden'), 5000);
+}
+
+function showSuccess(message) {
+    successMessage.textContent = message;
+    successMessage.classList.remove('hidden');
+    errorMessage.classList.add('hidden');
+    setTimeout(() => successMessage.classList.add('hidden'), 5000);
+}
+
+function validateFiles(files) {
+    if (files.length === 0) {
+        showError('Please select at least one PDF file.');
+        return false;
+    }
+
+    if (files.length > MAX_FILES) {
+        showError(`Maximum ${MAX_FILES} files allowed. You selected ${files.length} files.`);
+        return false;
+    }
+
+    for (let file of files) {
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            showError(`Invalid file type: ${file.name}. Only PDF files are allowed.`);
+            return false;
+        }
+
+        if (file.size > MAX_FILE_SIZE) {
+            showError(`File too large: ${file.name}. Maximum size is 10MB.`);
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // Drag & Drop Handling
 dropZone.addEventListener('click', () => fileInput.click());
@@ -27,9 +74,21 @@ fileInput.addEventListener('change', updateFileList);
 
 function updateFileList() {
     const files = Array.from(fileInput.files);
+
     if (files.length > 0) {
-        fileList.innerHTML = `<p>Selected ${files.length} files:</p><ul>` +
-            files.map(f => `<li>${f.name}</li>`).join('') + '</ul>';
+        if (!validateFiles(files)) {
+            fileInput.value = '';
+            fileList.innerHTML = '';
+            return;
+        }
+
+        const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+        const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+
+        fileList.innerHTML = `
+            <p><strong>Selected ${files.length} file(s)</strong> (${totalSizeMB} MB total):</p>
+            <ul>${files.map(f => `<li>${f.name} (${(f.size / 1024).toFixed(1)} KB)</li>`).join('')}</ul>
+        `;
     } else {
         fileList.innerHTML = '';
     }
@@ -39,14 +98,26 @@ function updateFileList() {
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    if (fileInput.files.length === 0) {
-        alert("Please upload at least one PDF file.");
+    const files = Array.from(fileInput.files);
+
+    if (!validateFiles(files)) {
+        return;
+    }
+
+    // Check if at least one field is filled
+    const formData = new FormData(uploadForm);
+    const hasData = Array.from(formData.entries()).some(([key, value]) =>
+        key !== 'files' && value.trim() !== ''
+    );
+
+    if (!hasData) {
+        showError('Please fill in at least one detail field.');
         return;
     }
 
     loadingOverlay.classList.remove('hidden');
-
-    const formData = new FormData(uploadForm);
+    errorMessage.classList.add('hidden');
+    successMessage.classList.add('hidden');
 
     try {
         const response = await fetch('/api/process', {
@@ -55,7 +126,8 @@ uploadForm.addEventListener('submit', async (e) => {
         });
 
         if (!response.ok) {
-            throw new Error(`Server error: ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Server error: ${response.statusText}`);
         }
 
         const blob = await response.blob();
@@ -69,10 +141,17 @@ uploadForm.addEventListener('submit', async (e) => {
         window.URL.revokeObjectURL(url);
         a.remove();
 
+        showSuccess('Files processed successfully! Download started.');
+
+        // Reset form
+        uploadForm.reset();
+        fileList.innerHTML = '';
+
     } catch (error) {
-        console.error(error);
-        alert("Failed to connect to the server.");
+        console.error('Error:', error);
+        showError(error.message || 'Failed to connect to the server. Please try again.');
     } finally {
         loadingOverlay.classList.add('hidden');
     }
 });
+

@@ -4,9 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto-Lab Personalizer</title>
+    <meta name="description"
+        content="Auto-Lab Personalizer - Batch process your PDF lab reports instantly. Personalize student details in PDF documents quickly and easily.">
+    <meta name="keywords" content="PDF personalizer, lab reports, batch processing, student documents">
+    <meta name="author" content="PDFSwap">
+    <title>Auto-Lab Personalizer - Batch PDF Processing Tool</title>
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 </head>
 
 <body>
@@ -19,51 +24,60 @@
 
     <div class="container">
         <header>
-            <h1>Auto-Lab Personalizer</h1>
-            <p>Batch process your lab reports instantly.</p>
+            <h1>📄 Auto-Lab Personalizer</h1>
+            <p>Batch process your lab reports instantly with your details.</p>
         </header>
 
         <main>
+            <!-- Error Message Area -->
+            <div id="errorMessage" class="error-message hidden" role="alert" aria-live="polite"></div>
+
+            <!-- Success Message Area -->
+            <div id="successMessage" class="success-message hidden" role="status" aria-live="polite"></div>
+
             <form id="uploadForm">
                 <div class="form-grid">
                     <div class="input-group">
-                        <label>Name</label>
-                        <input type="text" id="name" name="name" placeholder="John Doe">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" name="name" placeholder="John Doe" aria-label="Student name">
                     </div>
                     <div class="input-group">
-                        <label>Roll No</label>
-                        <input type="text" id="roll" name="roll" placeholder="123">
+                        <label for="roll">Roll No</label>
+                        <input type="text" id="roll" name="roll" placeholder="123" aria-label="Roll number">
                     </div>
                     <div class="input-group">
-                        <label>Class</label>
-                        <input type="text" id="classname" name="classname" placeholder="SY BTech">
+                        <label for="classname">Class</label>
+                        <input type="text" id="classname" name="classname" placeholder="SY BTech"
+                            aria-label="Class name">
                     </div>
                     <div class="input-group">
-                        <label>Division</label>
-                        <input type="text" id="div" name="div" placeholder="A">
+                        <label for="div">Division</label>
+                        <input type="text" id="div" name="div" placeholder="A" aria-label="Division">
                     </div>
                     <div class="input-group">
-                        <label>PRN/ID</label>
-                        <input type="text" id="prn" name="prn" placeholder="20220101">
+                        <label for="prn">PRN/ID</label>
+                        <input type="text" id="prn" name="prn" placeholder="20220101" aria-label="PRN or ID number">
                     </div>
                     <div class="input-group">
-                        <label>Activity Title</label>
-                        <input type="text" id="activity" name="activity" placeholder="Experiment 1">
+                        <label for="activity">Activity Title</label>
+                        <input type="text" id="activity" name="activity" placeholder="Experiment 1"
+                            aria-label="Activity or experiment title">
                     </div>
                 </div>
 
-                <div class="file-upload-area" id="dropZone">
+                <div class="file-upload-area" id="dropZone" role="button" tabindex="0" aria-label="Upload PDF files">
                     <p>Drag & Drop PDF files here or <span>Browse</span></p>
-                    <input type="file" id="files" name="files" multiple accept=".pdf" hidden>
+                    <p class="file-hint">Maximum 20 files, 10MB each</p>
+                    <input type="file" id="files" name="files" multiple accept=".pdf" hidden aria-label="File input">
                 </div>
-                <div id="fileList" class="file-list"></div>
+                <div id="fileList" class="file-list" aria-live="polite"></div>
 
-                <button type="submit" id="processBtn">Process Files</button>
+                <button type="submit" id="processBtn" aria-label="Process uploaded files">Process Files</button>
             </form>
         </main>
 
         <!-- Sidebar Ad (Visual Only for layout) -->
-        <aside class="sidebar-ad">
+        <aside class="sidebar-ad" aria-label="Advertisement">
             <p>Ad Space (Sidebar)</p>
             <!-- Paste Google AdSense Code Here -->
         </aside>
@@ -75,7 +89,7 @@
         <!-- Paste Google AdSense Code Here -->
     </div>
 
-    <div id="loadingOverlay" class="hidden">
+    <div id="loadingOverlay" class="hidden" role="status" aria-live="polite">
         <div class="spinner"></div>
         <p>Processing your files...</p>
     </div>
