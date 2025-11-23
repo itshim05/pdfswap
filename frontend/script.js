@@ -9,6 +9,7 @@ const successMessage = document.getElementById('successMessage');
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 20;
+const STATUS_POLL_INTERVAL = 2000; // 2 seconds
 
 // Utility Functions
 function showError(message) {
@@ -25,13 +26,20 @@ function showSuccess(message) {
     setTimeout(() => successMessage.classList.add('hidden'), 5000);
 }
 
+function updateLoadingMessage(message) {
+    const loadingText = loadingOverlay.querySelector('p');
+    if (loadingText) {
+        loadingText.textContent = message;
+    }
+}
+
 function validateFiles(files) {
     if (files.length === 0) {
         showError('Please select at least one PDF file.');
         return false;
     }
 
-    if (files.length > MAX_FILES) {
+    if (files > MAX_FILES) {
         showError(`Maximum ${MAX_FILES} files allowed. You selected ${files.length} files.`);
         return false;
     }
@@ -94,6 +102,62 @@ function updateFileList() {
     }
 }
 
+// Queue Status Polling
+async function pollJobStatus(jobId) {
+    while (true) {
+        try {
+            const response = await fetch(`/api/status/${jobId}`);
+
+            if (!response.ok) {
+                throw new Error('Failed to get job status');
+            }
+
+            const status = await response.json();
+
+            if (status.status === 'queued') {
+                updateLoadingMessage(`Position in queue: #${status.position}\nEstimated wait: ${status.estimated_wait}s`);
+            } else if (status.status === 'processing') {
+                updateLoadingMessage('Processing your files...');
+            } else if (status.status === 'completed') {
+                // Download the result
+                const downloadUrl = status.download_url;
+                const downloadResponse = await fetch(downloadUrl);
+                const blob = await downloadResponse.blob();
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "processed_lab_reports.zip";
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+
+                loadingOverlay.classList.add('hidden');
+                showSuccess('Files processed successfully! Download started.');
+
+                // Reset form
+                uploadForm.reset();
+                fileList.innerHTML = '';
+                break;
+            } else if (status.status === 'failed') {
+                loadingOverlay.classList.add('hidden');
+                showError(status.error || 'Processing failed. Please try again.');
+                break;
+            }
+
+            // Wait before polling again
+            await new Promise(resolve => setTimeout(resolve, STATUS_POLL_INTERVAL));
+
+        } catch (error) {
+            console.error('Polling error:', error);
+            loadingOverlay.classList.add('hidden');
+            showError('Lost connection to server. Please refresh and try again.');
+            break;
+        }
+    }
+}
+
 // Form Submission
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -116,11 +180,13 @@ uploadForm.addEventListener('submit', async (e) => {
     }
 
     loadingOverlay.classList.remove('hidden');
+    updateLoadingMessage('Submitting to queue...');
     errorMessage.classList.add('hidden');
     successMessage.classList.add('hidden');
 
     try {
-        const response = await fetch('/api/process', {
+        // Submit to queue
+        const response = await fetch('/api/queue', {
             method: 'POST',
             body: formData
         });
@@ -130,28 +196,17 @@ uploadForm.addEventListener('submit', async (e) => {
             throw new Error(errorData.detail || `Server error: ${response.statusText}`);
         }
 
-        const blob = await response.blob();
-        const newBlob = new Blob([blob], { type: 'application/zip' });
-        const url = window.URL.createObjectURL(newBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "processed_lab_reports.zip";
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
+        const result = await response.json();
+        const jobId = result.job_id;
 
-        showSuccess('Files processed successfully! Download started.');
+        updateLoadingMessage(`Added to queue. Position: #${result.position}`);
 
-        // Reset form
-        uploadForm.reset();
-        fileList.innerHTML = '';
+        // Start polling for status
+        await pollJobStatus(jobId);
 
     } catch (error) {
         console.error('Error:', error);
-        showError(error.message || 'Failed to connect to the server. Please try again.');
-    } finally {
         loadingOverlay.classList.add('hidden');
+        showError(error.message || 'Failed to connect to the server. Please try again.');
     }
 });
-
