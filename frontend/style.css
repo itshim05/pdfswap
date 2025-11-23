@@ -304,120 +304,79 @@ button:active {
 }
 
 .testimonial-card span {
-    font-weight: 600;
-    color: var(--primary);
-    font-size: 0.9rem;
-}
-
-/* Share Section */
-.share-section {
-    margin-top: 40px;
-    text-align: center;
-}
-
-.share-section h3 {
-    font-size: 1.2rem;
-    margin-bottom: 16px;
-    color: var(--text);
-}
-
-.share-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.share-btn {
-    padding: 10px 20px;
-    border-radius: 20px;
-    text-decoration: none;
-    font-weight: 600;
-    color: white;
-    transition: transform 0.2s;
-}
-
-.share-btn:hover {
-    transform: translateY(-2px);
-}
-
-.whatsapp {
-    background: #25D366;
-}
-
-.progress-bar {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 0.3s ease;
-}
-
-.progress-text {
-    color: white;
-    font-size: 0.9rem;
-    margin-top: 8px;
-}
-
-/* Footer */
-footer {
-    text-align: center;
-    margin-top: 60px;
-    padding-top: 30px;
-    border-top: 1px solid var(--border);
-    color: var(--text-light);
-    font-size: 0.9rem;
-}
-
-.footer-links {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-}
-
-.footer-links a {
-    color: var(--text-light);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.footer-links a:hover {
-    color: var(--primary);
-    text-decoration: underline;
-}
-
-.separator {
-    color: var(--border);
-}
-
-@media (max-width: 768px) {
-    body {
-        padding: 20px 16px;
+    .progress-bar {
+        height: 100%;
+        background: var(--accent);
+        width: 0%;
+        transition: width 0.3s ease;
     }
 
-    header h1 {
-        font-size: 2rem;
+    .progress-text {
+        color: white;
+        font-size: 0.9rem;
+        margin-top: 8px;
     }
 
-    main {
-        padding: 24px 20px;
+    /* Footer */
+    footer {
+        text-align: center;
+        margin-top: 60px;
+        padding-top: 30px;
+        border-top: 1px solid var(--border);
+        color: var(--text-light);
+        font-size: 0.9rem;
     }
 
-    .form-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
+    .footer-links {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
     }
 
-    .ad-banner {
-        height: 70px;
-        margin-bottom: 20px;
+    .footer-links a {
+        color: var(--text-light);
+        text-decoration: none;
+        transition: color 0.2s;
     }
 
-    .testimonial-grid {
-        grid-template-columns: 1fr;
+    .footer-links a:hover {
+        color: var(--primary);
+        text-decoration: underline;
     }
 
-    .progress-container {
-        width: 80%;
+    .separator {
+        color: var(--border);
     }
-}
+
+    @media (max-width: 768px) {
+        body {
+            padding: 20px 16px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+        }
+
+        main {
+            padding: 24px 20px;
+        }
+
+        .form-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .ad-banner {
+            height: 70px;
+            margin-bottom: 20px;
+        }
+
+        .testimonial-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .progress-container {
+            width: 80%;
+        }
+    }

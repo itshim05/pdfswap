@@ -40,7 +40,7 @@ jobs: Dict[str, dict] = {}  # job_id -> job_data
 active_jobs = 0
 job_queue = asyncio.Queue()
 processing_lock = asyncio.Lock()
-total_files_processed = 12450  # Starting count for social proof
+total_files_processed = 100  # Starting count for social proof
 
 # Helper Functions
 # ... (existing helper functions) ...
@@ -644,16 +644,217 @@ async def process_files(
         logger.error(f"Unexpected error in process_files: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while processing your files")
 
+        
+        # Create job
+        job_id = str(uuid.uuid4())
+        queue_position = job_queue.qsize() + 1
+        
+        jobs[job_id] = {
+            "status": "queued",
+            "position": queue_position,
+            "created_at": datetime.now(),
+            "message": f"Position in queue: #{queue_position}"
+        }
+        
+        # Add to queue
+        await job_queue.put({
+            "job_id": job_id,
+            "files_data": files_data,
+            "user_profile": user_profile
+        })
+        
+        logger.info(f"Job {job_id}: Added to queue (position {queue_position})")
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "position": queue_position,
+            "message": f"Added to queue. Position: #{queue_position}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error queuing job: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while queuing your request")
+
+
+@app.get("/api/status/{job_id}")
+async def get_job_status(job_id: str):
+    """Get the status of a queued job"""
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_data = jobs[job_id]
+    status = job_data["status"]
+    
+    response = {
+        "job_id": job_id,
+        "status": status
+    }
+    
+    if status == "queued":
+        # Calculate current position
+        current_position = 0
+        for jid, jdata in jobs.items():
+            if jdata["status"] == "queued" and jdata["created_at"] < job_data["created_at"]:
+                current_position += 1
+        current_position += 1
+        
+        response["position"] = current_position
+        response["message"] = f"Position in queue: #{current_position}"
+        response["estimated_wait"] = current_position * 5  # Rough estimate: 5 seconds per job
+        
+    elif status == "processing":
+        response["message"] = job_data.get("message", "Processing your files...")
+        response["progress"] = job_data.get("progress", {"current": 0, "total": 0})
+        
+    elif status == "completed":
+        response["message"] = "Processing complete!"
+        response["download_url"] = f"/api/download/{job_id}"
+        
+    elif status == "failed":
+        response["error"] = job_data.get("error", "Unknown error")
+        response["message"] = "Processing failed"
+    
+    return response
+
+
+@app.get("/api/download/{job_id}")
+async def download_result(job_id: str):
+    """Download the processed files for a completed job"""
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_data = jobs[job_id]
+    
+    if job_data["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+    
+    if "result" not in job_data:
+        raise HTTPException(status_code=404, detail="Result not found")
+    
+    result_bytes = job_data["result"]
+    
+    return StreamingResponse(
+        io.BytesIO(result_bytes),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=processed_lab_reports.zip",
+            "Content-Length": str(len(result_bytes))
+        }
+    )
+
+
+# Keep original endpoint for backward compatibility
+
+
+# API Endpoints
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "PDF Personalizer"}
+
+@app.post("/api/process")
+async def process_files(
+    files: List[UploadFile] = File(...),
+    name: Optional[str] = Form(None),
+    roll: Optional[str] = Form(None),
+    classname: Optional[str] = Form(None),
+    div: Optional[str] = Form(None),
+    prn: Optional[str] = Form(None),
+    activity: Optional[str] = Form(None)
+):
+    """Process uploaded PDF files with user details."""
+    try:
+        # Validate number of files
+        if len(files) > MAX_FILES:
+            raise HTTPException(status_code=400, detail=f"Maximum {MAX_FILES} files allowed")
+        
+        if len(files) == 0:
+            raise HTTPException(status_code=400, detail="No files uploaded")
+        
+        user_profile = {
+            'name': name,
+            'roll': roll,
+            'class': classname,
+            'div': div,
+            'prn': prn,
+            'activity': activity
+        }
+        
+        # Check if at least one field is provided
+        if not any(user_profile.values()):
+            raise HTTPException(status_code=400, detail="Please provide at least one detail to personalize")
+        
+        zip_buffer = io.BytesIO()
+        processed_count = 0
+        
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            for file in files:
+                # Validate file type
+                if not file.filename.lower().endswith('.pdf'):
+                    logger.warning(f"Skipping non-PDF file: {file.filename}")
+                    continue
+                
+                content = await file.read()
+                
+                # Validate file size
+                if len(content) > MAX_FILE_SIZE:
+                    logger.warning(f"File too large: {file.filename}")
+                    continue
+                
+                # Validate PDF format
+                if not validate_pdf(content):
+                    logger.warning(f"Invalid PDF: {file.filename}")
+                    continue
+                
+                try:
+                    processed_content = process_single_pdf(content, user_profile)
+                    zf.writestr(f"processed_{file.filename}", processed_content)
+                    processed_count += 1
+                    logger.info(f"Successfully processed: {file.filename}")
+                except Exception as e:
+                    logger.error(f"Error processing {file.filename}: {e}")
+                    continue
+        
+        if processed_count == 0:
+            raise HTTPException(status_code=400, detail="No valid PDF files were processed")
+        
+        zip_buffer.seek(0)
+        logger.info(f"Successfully processed {processed_count} files")
+        
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": "attachment; filename=processed_lab_reports.zip",
+                "Content-Length": str(zip_buffer.getbuffer().nbytes)
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in process_files: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while processing your files")
+
 # Static Files & Frontend Serving
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 @app.get("/")
 async def read_index():
-    """Serve the main application page."""
     return FileResponse('frontend/index.html')
+
+@app.get("/privacy")
+async def read_privacy():
+    return FileResponse('frontend/privacy.html')
+
+@app.get("/terms")
+async def read_terms():
+    return FileResponse('frontend/terms.html')
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
