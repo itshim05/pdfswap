@@ -96,15 +96,21 @@ https://pdfswap.onrender.com
 3. Add your domain and follow DNS instructions
 4. Wait for SSL certificate (automatic, takes ~5 minutes)
 
-### 2. Add Google AdSense
+### 2. Add Google AdSense (Monetization)
 
-Once your site is live:
+Once your site is live on a custom domain:
 
-1. **Apply for AdSense**: [google.com/adsense](https://www.google.com/adsense)
-2. **Add AdSense code** to your `frontend/index.html`
-3. **Wait for approval** (usually 1-2 weeks)
+1.  **Sign Up:** Go to [Google AdSense](https://www.google.com/adsense) and sign in.
+2.  **Add Site:** Click "Sites" > "New Site" and enter your domain (e.g., `pdfswap.com`).
+3.  **Get Code:** Google will give you a script tag.
+    *   *Note:* I have already added the placeholders in `index.html`. You just need to paste the script tag into the `<head>` section.
+4.  **Request Review:** Click "Request Review".
+5.  **Wait:** Approval usually takes 1-2 weeks. Ensure your site has traffic!
 
-I can help you add AdSense code once you get approved!
+**Critical for Approval:**
+*   **Custom Domain:** AdSense rarely approves `.onrender.com` subdomains. You need a real domain (e.g., `.com`, `.in`).
+*   **Content:** The "How it Works" section we added is vital.
+*   **Legal Pages:** The Privacy Policy and Terms pages we added are mandatory.
 
 ### 3. Monitor Your App
 
