@@ -160,9 +160,10 @@ def process_single_pdf(file_bytes, user_details):
                             # Use consistent label and new value
                             new_line_text = f"{pattern_info['label']}{separator}{pattern_info['value']}"
                             
-                            # Clear the old line
+                            # Properly remove the old text using redaction
                             line_bbox = fitz.Rect(line["bbox"])
-                            page.draw_rect(line_bbox, color=(1, 1, 1), fill=(1, 1, 1))
+                            page.add_redact_annot(line_bbox, fill=(1, 1, 1))
+                            page.apply_redactions()
                             
                             # Insert new text
                             start_x = origin_span["origin"][0]
