@@ -208,6 +208,23 @@ function shareTelegram() {
 // Initialize
 fetchStats();
 
+// Cookie Banner Logic
+const cookieBanner = document.getElementById('cookieBanner');
+const acceptCookiesBtn = document.getElementById('acceptCookies');
+
+if (!localStorage.getItem('cookiesAccepted')) {
+    setTimeout(() => {
+        cookieBanner.classList.remove('hidden');
+    }, 1000);
+}
+
+if (acceptCookiesBtn) {
+    acceptCookiesBtn.addEventListener('click', () => {
+        localStorage.setItem('cookiesAccepted', 'true');
+        cookieBanner.classList.add('hidden');
+    });
+}
+
 // Form Submission
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
