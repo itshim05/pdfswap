@@ -200,11 +200,6 @@ function shareWhatsApp() {
     window.open(`https://wa.me/?text=${text}`, '_blank');
 }
 
-function shareTelegram() {
-    const text = encodeURIComponent("Check out this tool to personalize PDF lab reports instantly!");
-    window.open(`https://t.me/share/url?url=${window.location.href}&text=${text}`, '_blank');
-}
-
 // Initialize
 fetchStats();
 
