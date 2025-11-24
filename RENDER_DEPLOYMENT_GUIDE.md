@@ -96,12 +96,17 @@ https://pdfswap.onrender.com
 3. Add your domain and follow DNS instructions
 4. Wait for SSL certificate (automatic, takes ~5 minutes)
 
-### 2. Add Ads (Easy Approval)
+### 2. Add Ads (Monetization Strategy)
 
-Since you are using a free Render domain, **Google AdSense will likely reject you**.
-I recommend **PropellerAds** or **A-Ads** as they approve almost everyone.
+**Recommendation: Use PropellerAds**
+For a site like this (tools/utilities), **PropellerAds** is usually the best performer. It pays well for "Popunder" and "Push Notification" ads, which work great on file conversion sites. A-Ads is easier (no signup approval) but usually pays less.
 
-**Option A: PropellerAds (Pop-ups & Banners)**
+**Strategy:**
+1.  Keep the **Google AdSense** code I added (just in case they approve you later!).
+2.  Sign up for **[PropellerAds](https://propellerads.com/)** as a Publisher.
+3.  Add your site and verify it (paste the tag they give you into `index.html`).
+4.  Create a **"OnClick (Popunder)"** zone. This is the highest earning ad type for file tools.
+5.  Paste the code they give you into `index.html`.
 1.  Sign up at [PropellerAds](https://propellerads.com/).
 2.  Add your site (`https://pdfswap.onrender.com`).
 3.  They will give you a **verification tag**. Paste it into `frontend/index.html` inside the `<head>` tag.
