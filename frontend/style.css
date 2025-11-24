@@ -294,7 +294,27 @@ button:active {
     max-width: 600px;
 }
 
-.share-btn {}
+.share-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    font-weight: 600;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.share-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.whatsapp {
+    background: #25D366;
+}
 
 /* Footer */
 footer {
