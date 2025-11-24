@@ -96,21 +96,22 @@ https://pdfswap.onrender.com
 3. Add your domain and follow DNS instructions
 4. Wait for SSL certificate (automatic, takes ~5 minutes)
 
-### 2. Add Google AdSense (Monetization)
+### 2. Add Ads (Easy Approval)
 
-Once your site is live on a custom domain:
+Since you are using a free Render domain, **Google AdSense will likely reject you**.
+I recommend **PropellerAds** or **A-Ads** as they approve almost everyone.
 
-1.  **Sign Up:** Go to [Google AdSense](https://www.google.com/adsense) and sign in.
-2.  **Add Site:** Click "Sites" > "New Site" and enter your domain (e.g., `pdfswap.com`).
-3.  **Get Code:** Google will give you a script tag.
-    *   *Note:* I have already added the placeholders in `index.html`. You just need to paste the script tag into the `<head>` section.
-4.  **Request Review:** Click "Request Review".
-5.  **Wait:** Approval usually takes 1-2 weeks. Ensure your site has traffic!
+**Option A: PropellerAds (Pop-ups & Banners)**
+1.  Sign up at [PropellerAds](https://propellerads.com/).
+2.  Add your site (`https://pdfswap.onrender.com`).
+3.  They will give you a **verification tag**. Paste it into `frontend/index.html` inside the `<head>` tag.
+4.  Once verified, create a "MultiTag" or "OnClick" ad zone and paste the code they give you.
 
-**Critical for Approval:**
-*   **Custom Domain:** AdSense rarely approves `.onrender.com` subdomains. You need a real domain (e.g., `.com`, `.in`).
-*   **Content:** The "How it Works" section we added is vital.
-*   **Legal Pages:** The Privacy Policy and Terms pages we added are mandatory.
+**Option B: A-Ads (Crypto / Anonymous)**
+1.  Go to [A-Ads](https://a-ads.com/).
+2.  Click "Create Ad Unit".
+3.  Select "Site" and enter your URL.
+4.  They give you HTML code immediately. Paste it where you want ads to appear (e.g., top or bottom banner).
 
 ### 3. Monitor Your App
 
