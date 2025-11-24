@@ -300,24 +300,6 @@ button:active {
     justify-content: center;
     padding: 12px 24px;
     border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
-    color: white;
-    transition: all 0.2s ease;
-    min-width: 180px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-background: rgba(255, 255, 255, 0.2);
-border-radius: 5px;
-margin-top: 15px;
-overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
     transition: width 0.3s ease;
 }
 
