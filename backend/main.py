@@ -169,32 +169,36 @@ def process_single_pdf(file_bytes, user_details):
         details = smart_parse_inputs(user_details)
         logger.info(f"Processing PDF with details: {details}")
         
-        # Define smarter patterns with lookaheads to detect boundaries in multi-field lines
-        # These patterns capture (Label, Separator, Value)
-        # The lookahead prevents capturing the next field's label
+        # These patterns only match actual label:value pairs, NOT keywords inside body text.
+        # Key rules:
+        #   1. Label must appear at start-of-string or after significant whitespace (multi-space gap)
+        #   2. A separator character (:, -, .) is REQUIRED after the label — prevents mid-sentence matches
+        #   3. \b word boundary stops partial matches
+        #   4. Value is captured non-greedily up to next field or end
+        #   5. The leading whitespace/boundary is captured in group 1 to preserve alignment
         field_defs = {
             'Name': {
-                're': r"(Name|Student\s*Name|Candidate\s*Name)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Roll|Class|Division|Div|PRN|Activity|Experiment))",
+                're': r"(^|\s{2,})\b(Name|Student\s*Name|Candidate\s*Name)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Roll|Class|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
                 'user_val': details.get('name')
             },
             'Roll': {
-                're': r"(Roll|Roll\s*No|Seat\s*No|Roll\s*Number)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Name|Class|Division|Div|PRN|Activity|Experiment))",
+                're': r"(^|\s{2,})\b(Roll\s*No|Seat\s*No|Roll\s*Number|Roll)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Class|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
                 'user_val': details.get('roll')
             },
             'Class': {
-                're': r"(Class|Year|Branch|Course)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Name|Roll|Division|Div|PRN|Activity|Experiment))",
+                're': r"(^|\s{2,})\b(Class|Year|Branch|Course)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
                 'user_val': details.get('class')
             },
             'Div': {
-                're': r"(Div|Division|Section|Batch)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Name|Roll|Class|PRN|Activity|Experiment))",
+                're': r"(^|\s{2,})\b(Div|Division|Section|Batch)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|PRN|Activity|Experiment|Aim|Title)\b)",
                 'user_val': details.get('div')
             },
             'PRN': {
-                're': r"(PRN|Reg\s*No|ID|Registration|Registration\s*No)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Name|Roll|Class|Division|Div|Activity|Experiment))",
+                're': r"(^|\s{2,})\b(PRN|PRN\s*No|P\.?R\.?N\.?|ID|Reg\s*No|Registration\s*No|Registration)\b(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|Division|Div|Activity|Experiment|Aim|Title)\b)",
                 'user_val': details.get('prn')
             },
             'Activity': {
-                're': r"(Aim|Title|Experiment|Activity|Experiment\s*No)(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\s(?:Name|Roll|Class|Division|Div|PRN))",
+                're': r"(^|\s{2,})\b(Aim|Experiment\s*No|Experiment|Activity|Title)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|Division|Div|PRN)\b)",
                 'user_val': details.get('activity')
             }
         }
@@ -244,11 +248,12 @@ def process_single_pdf(file_bytes, user_details):
                         matches = list(re.finditer(field_cfg['re'], new_line_text, re.IGNORECASE))
                         if matches:
                             for match in reversed(matches):
-                                label = match.group(1)
-                                sep = match.group(2)
-                                old_val = match.group(3)
+                                prefix = match.group(1)
+                                label = match.group(2)
+                                sep = match.group(3)
+                                old_val = match.group(4)
                                 
-                                replacement = f"{label}{sep}{field_cfg['user_val']}"
+                                replacement = f"{prefix}{label}{sep}{field_cfg['user_val']}"
                                 start, end = match.span()
                                 new_line_text = new_line_text[:start] + replacement + new_line_text[end:]
                                 line_changed = True
