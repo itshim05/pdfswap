@@ -49,7 +49,7 @@ app.add_middleware(
 )
 
 # Constants
-HEADER_LIMIT_Y = 300
+HEADER_LIMIT_Y = 500  # Covers typical lab report headers including logos, tables, field rows
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
 MAX_FILES = 20  # Maximum number of files per request
 MAX_CONCURRENT_JOBS = 5  # Maximum concurrent processing jobs
@@ -162,162 +162,286 @@ def validate_pdf(file_bytes: bytes) -> bool:
         return False
 
 def process_single_pdf(file_bytes, user_details):
-    """Process a single PDF file with smart context awareness and robust font handling."""
+    """Process a single PDF: find field labels on page 1 using native search, replace their values."""
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-        
         details = smart_parse_inputs(user_details)
         logger.info(f"Processing PDF with details: {details}")
-        
-        # These patterns only match actual label:value pairs, NOT keywords inside body text.
-        # Key rules:
-        #   1. Label must appear at start-of-string or after significant whitespace (multi-space gap)
-        #   2. A separator character (:, -, .) is REQUIRED after the label — prevents mid-sentence matches
-        #   3. \b word boundary stops partial matches
-        #   4. Value is captured non-greedily up to next field or end
-        #   5. The leading whitespace/boundary is captured in group 1 to preserve alignment
-        field_defs = {
-            'Name': {
-                're': r"(^|\s{2,})\b(Name|Student\s*Name|Candidate\s*Name)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Roll|Class|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
-                'user_val': details.get('name')
-            },
-            'Roll': {
-                're': r"(^|\s{2,})\b(Roll\s*No|Seat\s*No|Roll\s*Number|Roll)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Class|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
-                'user_val': details.get('roll')
-            },
-            'Class': {
-                're': r"(^|\s{2,})\b(Class|Year|Branch|Course)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Division|Div|PRN|Activity|Experiment|Aim|Title)\b)",
-                'user_val': details.get('class')
-            },
-            'Div': {
-                're': r"(^|\s{2,})\b(Div|Division|Section|Batch)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|PRN|Activity|Experiment|Aim|Title)\b)",
-                'user_val': details.get('div')
-            },
-            'PRN': {
-                're': r"(^|\s{2,})\b(PRN|PRN\s*No|P\.?R\.?N\.?|ID|Reg\s*No|Registration\s*No|Registration)\b(\s*[:\-\.]?\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|Division|Div|Activity|Experiment|Aim|Title)\b)",
-                'user_val': details.get('prn')
-            },
-            'Activity': {
-                're': r"(^|\s{2,})\b(Aim|Experiment\s*No|Experiment|Activity|Title)\b(\s*[:\-\.]\s*)(.*?)(?=\s{2,}|$|\b(?:Name|Roll|Class|Division|Div|PRN)\b)",
-                'user_val': details.get('activity')
-            }
-        }
+
+        # Labels to search for, ordered most-specific first to avoid partial matches
+        # Each entry: (user_input_key, [label_variants])
+        field_config = [
+            ('name',     ['Student Name', 'Candidate Name', 'Name of Student', 'Name of the Student', 'Name']),
+            ('roll',     ['Roll No.', 'Roll No', 'Roll Number', 'Seat No.', 'Seat No', 'Roll']),
+            ('class',    ['Class', 'Branch', 'Course', 'Year']),
+            ('div',      ['Division', 'Div.', 'Div', 'Section', 'Batch']),
+            ('prn',      ['PRN No.', 'PRN No', 'P.R.N.', 'PRN', 'Registration No', 'Reg No', 'ID No']),
+            ('activity', ['Experiment No.', 'Experiment No', 'Exp No.', 'Exp No', 'Aim', 'Experiment', 'Activity', 'Title']),
+        ]
 
         replacements_made = 0
 
-        if len(doc) > 0:
-            page = doc[0]
-            blocks = page.get_text("dict")["blocks"]
-            logger.info(f"Processing first page: {len(blocks)} blocks")
-            
-            lines_to_modify = []
-            
-            for block in blocks:
-                if "lines" not in block:
-                    continue
-                if block["bbox"][1] > HEADER_LIMIT_Y:
-                    continue
-                    
-                for line in block["lines"]:
-                    if not line["spans"]:
+        if len(doc) == 0:
+            out_buffer = io.BytesIO()
+            doc.save(out_buffer)
+            doc.close()
+            out_buffer.seek(0)
+            return out_buffer.getvalue()
+
+        page = doc[0]
+        page_width = page.rect.width
+
+        # Get text dict once for font/position lookups
+        text_dict = page.get_text("dict")
+        header_spans = []
+        for block in text_dict["blocks"]:
+            if "lines" not in block or block["bbox"][1] > HEADER_LIMIT_Y:
+                continue
+            for line in block["lines"]:
+                for span in line["spans"]:
+                    header_spans.append(span)
+
+        # Step 1: Find ALL label positions on page 1 for boundary detection
+        all_label_rects = []  # (rect, field_key)
+        for field_key, variants in field_config:
+            for label in variants:
+                for hit in page.search_for(label):
+                    if hit.y0 <= HEADER_LIMIT_Y:
+                        all_label_rects.append((hit, field_key))
+
+        logger.info(f"Found {len(all_label_rects)} label positions in header area")
+        for lr, lk in all_label_rects:
+            logger.info(f"  Label '{lk}' at x={lr.x0:.0f}, y={lr.y0:.0f}")
+
+        # Step 2: For each user-provided field, find FIRST label match and replace its value
+        modifications = []
+        fields_done = set()
+
+        for field_key, label_variants in field_config:
+            if field_key in fields_done:
+                continue
+            user_val = details.get(field_key)
+            if not user_val:
+                continue
+
+            for label_text in label_variants:
+                if field_key in fields_done:
+                    break
+
+                hits = page.search_for(label_text)
+                for hit in hits:
+                    if hit.y0 > HEADER_LIMIT_Y or field_key in fields_done:
                         continue
-                        
-                    # Reconstruct text with spatial gaps mapped to spaces for proper alignment
-                    raw_text_parts = []
-                    for i, span in enumerate(line["spans"]):
-                        if i > 0:
-                            prev_span = line["spans"][i-1]
-                            # Compare left edge of current span with right edge of previous
-                            gap = span["bbox"][0] - prev_span["bbox"][2]
-                            space_width = span["size"] * 0.25  # Approx space character width
-                            if gap > space_width * 1.2 and space_width > 0:
-                                num_spaces = int(gap / space_width)
-                                raw_text_parts.append(" " * num_spaces)
-                        raw_text_parts.append(span["text"])
-                        
-                    full_line_text = "".join(raw_text_parts)
-                    new_line_text = full_line_text
-                    line_changed = False
-                    
-                    # Check each field definition against the line
-                    for field_key, field_cfg in field_defs.items():
-                        if not field_cfg['user_val']:
-                            continue  # User didn't provide a value for this field, keep original
-                            
-                        # Find the match
-                        matches = list(re.finditer(field_cfg['re'], new_line_text, re.IGNORECASE))
-                        if matches:
-                            for match in reversed(matches):
-                                prefix = match.group(1)
-                                label = match.group(2)
-                                sep = match.group(3)
-                                old_val = match.group(4)
-                                
-                                replacement = f"{prefix}{label}{sep}{field_cfg['user_val']}"
-                                start, end = match.span()
-                                new_line_text = new_line_text[:start] + replacement + new_line_text[end:]
-                                line_changed = True
-                                logger.info(f"MATCH FOUND for {field_key}: Replacing '{old_val}' with '{field_cfg['user_val']}'")
 
-                    if line_changed:
-                        # Extract first span properties for rendering
-                        origin_span = line["spans"][0]
-                        lines_to_modify.append({
-                            "spans": line["spans"],
-                            "new_text": new_line_text,
-                            "origin_x": origin_span["origin"][0],
-                            "origin_y": origin_span["origin"][1],
-                            "font": origin_span["font"],
-                            "size": origin_span["size"],
-                            "color": origin_span["color"],
-                            "flags": origin_span["flags"]
-                        })
+                    logger.info(f"  Matched '{label_text}' for field '{field_key}' at y={hit.y0:.0f}")
 
-            # Apply all collected redactions cleanly (prevents overlapping and erasing neighbor lines)
-            if lines_to_modify:
-                for mod in lines_to_modify:
-                    for span in mod["spans"]:
-                        r = fitz.Rect(span["bbox"])
-                        # Slight vertical expansion to ensure full erasure of descenders/ascenders
-                        r.y0 -= 1
-                        r.y1 += 1
-                        page.add_redact_annot(r, fill=(1, 1, 1))
+                    # Find right boundary: next label on same line, or page edge
+                    right_bound = page_width
+                    for other_rect, other_key in all_label_rects:
+                        if other_key == field_key:
+                            continue
+                        # Same horizontal band and to the right of our label
+                        if (abs(other_rect.y0 - hit.y0) < 10 and
+                            other_rect.x0 > hit.x1 + 5):
+                            right_bound = min(right_bound, other_rect.x0 - 2)
+
+                    # Value area: rectangle from end of label to right boundary
+                    val_rect = fitz.Rect(hit.x1, hit.y0 - 1, right_bound, hit.y1 + 1)
+
+                    # Get existing text in value area to detect separator
+                    existing = page.get_text("text", clip=val_rect).strip()
+
+                    # Auto-detect separator (: or - or .)
+                    sep = ": "
+                    if existing:
+                        m = re.match(r'^(\s*[:\-\.]\s*)', existing)
+                        if m:
+                            sep = m.group(1)
+                            if not sep.endswith(' '):
+                                sep += ' '
+
+                    # Find font info from nearest span in the value area
+                    font_name = "helv"
+                    font_size = 12
+                    font_color = 0
+                    font_flags = 0
+                    baseline_y = hit.y1 - (hit.y1 - hit.y0) * 0.2
+
+                    for sp in header_spans:
+                        sp_rect = fitz.Rect(sp["bbox"])
+                        if sp_rect.intersects(val_rect):
+                            font_name = sp["font"]
+                            font_size = sp["size"]
+                            font_color = sp["color"]
+                            font_flags = sp["flags"]
+                            baseline_y = sp["origin"][1]
+                            break
+
+                    # Fallback: use the label's own font if nothing found in value area
+                    if font_name == "helv":
+                        for sp in header_spans:
+                            sp_rect = fitz.Rect(sp["bbox"])
+                            if sp_rect.intersects(fitz.Rect(hit)):
+                                font_name = sp["font"]
+                                font_size = sp["size"]
+                                font_color = sp["color"]
+                                font_flags = sp["flags"]
+                                baseline_y = sp["origin"][1]
+                                break
+
+                    modifications.append({
+                        'redact_rect': val_rect,
+                        'label_rect': hit,
+                        'label_text': label_text,
+                        'insert_x': hit.x1,
+                        'insert_y': baseline_y,
+                        'font': font_name,
+                        'size': font_size,
+                        'color': font_color,
+                        'flags': font_flags,
+                        'sep': sep,
+                        'user_val': user_val,
+                        'text': sep + user_val,
+                        'field_key': field_key,
+                    })
+
+                    logger.info(f"  >> Will replace {field_key}: '{existing}' -> '{sep}{user_val}'")
+                    fields_done.add(field_key)
+                    replacements_made += 1
+                    break  # First hit only for this label variant
+
+        # Step 3: Group by line, redact, then insert with equal spacing for multi-field lines
+        if modifications:
+            from collections import defaultdict
+            
+            # Group modifications by Y position (8pt tolerance for same line)
+            line_groups = defaultdict(list)
+            for mod in modifications:
+                y_key = round(mod['label_rect'].y0 / 8) * 8
+                line_groups[y_key].append(mod)
+            
+            # Phase 1: Add all redaction annotations
+            for y_key, group in line_groups.items():
+                group.sort(key=lambda m: m['label_rect'].x0)
                 
-                page.apply_redactions()
+                if len(group) == 1:
+                    # Single field: redact just the value area
+                    page.add_redact_annot(group[0]['redact_rect'], fill=(1, 1, 1))
+                else:
+                    # Multiple fields on same line: redact entire line area (labels + values)
+                    line_x0 = min(m['label_rect'].x0 for m in group)
+                    line_x1 = max(m['redact_rect'].x1 for m in group)
+                    line_y0 = min(m['label_rect'].y0 for m in group) - 1
+                    line_y1 = max(m['label_rect'].y1 for m in group) + 1
+                    full_line_rect = fitz.Rect(line_x0, line_y0, line_x1, line_y1)
+                    page.add_redact_annot(full_line_rect, fill=(1, 1, 1))
+            
+            page.apply_redactions()
+            
+            # Phase 2: Insert text
+            for y_key, group in sorted(line_groups.items()):
+                group.sort(key=lambda m: m['label_rect'].x0)
                 
-                # Apply all insertions with reconstructed spacing
-                for mod in lines_to_modify:
-                    mapped_font = map_font(mod["font"], mod["flags"])
-                    r_col = ((mod["color"] >> 16) & 255) / 255
-                    g_col = ((mod["color"] >> 8) & 255) / 255
-                    b_col = (mod["color"] & 255) / 255
-                    
+                # Get font info from first field in the group
+                mod0 = group[0]
+                mapped_font = map_font(mod0['font'], mod0['flags'])
+                font_size = mod0['size']
+                c = mod0['color']
+                r_c = ((c >> 16) & 255) / 255
+                g_c = ((c >> 8) & 255) / 255
+                b_c = (c & 255) / 255
+                baseline_y = mod0['insert_y']
+                
+                if len(group) == 1:
+                    # Single field: insert at original position
+                    mod = group[0]
                     try:
-                        page.insert_text((mod["origin_x"], mod["origin_y"]), mod["new_text"], fontname=mapped_font, fontsize=mod["size"], color=(r_col, g_col, b_col))
-                        replacements_made += 1
-                        logger.info(f"Successfully inserted: '{mod['new_text']}'")
+                        page.insert_text(
+                            (mod['insert_x'], mod['insert_y']),
+                            mod['text'],
+                            fontname=mapped_font,
+                            fontsize=font_size,
+                            color=(r_c, g_c, b_c)
+                        )
+                        logger.info(f"  Inserted '{mod['text'].strip()}' for {mod['field_key']}")
                     except Exception as e:
-                        logger.warning(f"Font {mapped_font} failed, using helv: {e}")
-                        page.insert_text((mod["origin_x"], mod["origin_y"]), mod["new_text"], fontname="helv", fontsize=mod["size"], color=(r_col, g_col, b_col))
-                        replacements_made += 1
+                        page.insert_text(
+                            (mod['insert_x'], mod['insert_y']),
+                            mod['text'],
+                            fontname="helv",
+                            fontsize=font_size,
+                            color=(r_c, g_c, b_c)
+                        )
+                else:
+                    # Multiple fields: lay out with equal spacing
+                    # Build text segments: "Label: Value"
+                    segments = []
+                    for mod in group:
+                        seg_text = mod['label_text'] + mod['sep'] + mod['user_val']
+                        try:
+                            seg_width = fitz.get_text_length(seg_text, fontname=mapped_font, fontsize=font_size)
+                        except:
+                            seg_width = fitz.get_text_length(seg_text, fontname="helv", fontsize=font_size)
+                            mapped_font = "helv"
+                        segments.append((seg_text, seg_width, mod))
+                    
+                    # Calculate equal gap spacing — capped to page margins
+                    right_margin = page_width - 36  # 36pt = ~0.5 inch margin
+                    line_x0 = min(m['label_rect'].x0 for m in group)
+                    line_x1 = min(max(m['redact_rect'].x1 for m in group), right_margin)
+                    total_line_width = line_x1 - line_x0
+                    total_text_width = sum(w for _, w, _ in segments)
+                    
+                    if len(segments) > 1 and total_line_width > total_text_width:
+                        gap = (total_line_width - total_text_width) / (len(segments) - 1)
+                    else:
+                        gap = font_size * 2
+                    
+                    gap = max(gap, font_size * 0.5)  # minimum half-em gap
+                    
+                    # If everything would overflow the margin, shrink gap to fit
+                    total_needed = total_text_width + gap * (len(segments) - 1)
+                    if line_x0 + total_needed > right_margin and len(segments) > 1:
+                        available = right_margin - line_x0 - total_text_width
+                        gap = max(available / (len(segments) - 1), font_size * 0.3)
+                    
+                    # Insert each segment at calculated position
+                    current_x = line_x0
+                    for seg_text, seg_width, mod in segments:
+                        try:
+                            page.insert_text(
+                                (current_x, baseline_y),
+                                seg_text,
+                                fontname=mapped_font,
+                                fontsize=font_size,
+                                color=(r_c, g_c, b_c)
+                            )
+                        except:
+                            page.insert_text(
+                                (current_x, baseline_y),
+                                seg_text,
+                                fontname="helv",
+                                fontsize=font_size,
+                                color=(r_c, g_c, b_c)
+                            )
+                        logger.info(f"  Inserted '{seg_text}' at x={current_x:.0f}")
+                        current_x += seg_width + gap
 
         logger.info(f"Total replacements made: {replacements_made}")
-        
         if replacements_made == 0:
-            logger.warning("NO REPLACEMENTS MADE! Check if PDF has matching fields in header area (top 300 points)")
+            logger.warning("NO REPLACEMENTS MADE - no matching field labels found on page 1")
 
         out_buffer = io.BytesIO()
-        # Save with proper parameters for BytesIO
         doc.save(out_buffer, garbage=4, deflate=True, clean=True)
         doc.close()
-        
-        # Seek to beginning of buffer before reading
         out_buffer.seek(0)
         pdf_bytes = out_buffer.getvalue()
         logger.info(f"Returning PDF with {len(pdf_bytes)} bytes")
         return pdf_bytes
     except Exception as e:
         logger.error(f"Error processing PDF: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
